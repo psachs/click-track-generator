@@ -1,0 +1,12 @@
+[project]
+name = "click-track-generator"
+version = "0.1.0"
+description = "Generate Click Tracks"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click~=8.3.1",
+    "numpy~=2.4.3",
+    "scipy~=1.17.1",
+    "scipy-stubs~=1.17.1",
+]
