@@ -7,9 +7,16 @@ from scipy.io import wavfile
 
 
 def parse_duration(duration_str: str) -> float:
-    """Parses a duration string like '5min 30s', '5min', '10s', or '5' into seconds."""
+    """Parses a duration string like '5min 30s', '5min', '10s', '5' (minutes), or '04:30' into seconds."""
     if not duration_str:
         return 0.0
+
+    # Try to parse as MM:SS
+    mm_ss_match = re.match(r'^(\d+):(\d{2})$', duration_str.strip())
+    if mm_ss_match:
+        minutes = int(mm_ss_match.group(1))
+        seconds = int(mm_ss_match.group(2))
+        return float(minutes * 60 + seconds)
 
     # Try to parse as a simple float (default to minutes)
     try:
@@ -109,32 +116,13 @@ def load_custom_click(path: str, target_fs: int) -> np.ndarray:
         raise click.ClickException(click.style(f"Error loading custom WAV {path}: {e}", fg="red"))
 
 
-@click.command()
-@click.option('--bpm', default=120, help='Beats per minute.')
-@click.option('--duration', 'duration_str', default='5.0',
-              help='Duration of the main track (e.g. "5min 30s", "5min", "10s", or "5" for minutes).')
-@click.option('--beats', 'main_track_beats', type=int, default=None,
-              help='Duration in number of beats. If provided, duration is ignored.')
-@click.option('--pre-roll', 'pre_roll_sec', default=1.0, help='Pre-roll duration in seconds.')
-@click.option('--count-in', 'count_in_beats', default=4, help='Number of count-in beats.')
-@click.option('--count-in-type', type=click.Choice(['default', 'stick', 'wood']), default='stick',
-              help='Sound type for the count-in.')
-@click.option('--click-type', type=click.Choice(['default', 'wood']), default='default',
-              help='Sound type for the main click.')
-@click.option('--custom-high', type=click.Path(exists=True), default=None,
-              help='Custom WAV file for the high click.')
-@click.option('--custom-low', type=click.Path(exists=True), default=None,
-              help='Custom WAV file for the low click.')
-@click.option('--output', 'output_file', default=None,
-              help='Output filename. Defaults to click-track-<bpm>bpm.wav')
-@click.option('--fs', default=44100, help='Sampling rate.')
-@click.option('--measure', default='4/4', help='Measure/Time signature (e.g., 4/4, 3/4, 6/8).')
-def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional[int], pre_roll_sec: float,
-                         count_in_beats: int,
-                         count_in_type: str, click_type: str, custom_high: Optional[str],
-                         custom_low: Optional[str], output_file: Optional[str], fs: int,
-                         measure: str) -> None:
-    """Generates a click track with pre-roll and count-in."""
+def generate_click_track_core(bpm: int = 120, duration_str: str = '5.0', main_track_beats: Optional[int] = None,
+                              pre_roll_sec: float = 1.0, count_in_beats: int = 4,
+                              count_in_type: str = 'stick', click_type: str = 'default',
+                              custom_high: Optional[str] = None, custom_low: Optional[str] = None,
+                              output_file: Optional[str] = None, fs: int = 44100,
+                              measure: str = '4/4') -> None:
+    """Core logic to generate a click track."""
 
     try:
         parts = measure.split('/')
@@ -143,9 +131,8 @@ def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional
         if beat_unit not in [1, 2, 4, 8, 16]:
             raise ValueError(f"Unsupported beat unit: {beat_unit}")
     except (ValueError, IndexError):
-        raise click.ClickException(click.style(
-            f"Invalid measure format: {measure}. Expected 'n/m' (e.g., 4/4) with denominator in [1, 2, 4, 8, 16].",
-            fg="red"))
+        raise ValueError(
+            f"Invalid measure format: {measure}. Expected 'n/m' (e.g., 4/4) with denominator in [1, 2, 4, 8, 16].")
 
     if output_file is None:
         output_file = f"click-track-{bpm}bpm.wav"
@@ -153,11 +140,8 @@ def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional
     samples_per_beat = (60.0 / bpm) * (4.0 / beat_unit) * fs
 
     if main_track_beats is None:
-        try:
-            duration_sec = parse_duration(duration_str)
-            main_track_beats = int((duration_sec * bpm / 60.0) * (beat_unit / 4.0))
-        except ValueError as e:
-            raise click.ClickException(click.style(str(e), fg="red"))
+        duration_sec = parse_duration(duration_str)
+        main_track_beats = int((duration_sec * bpm / 60.0) * (beat_unit / 4.0))
 
     total_beats = count_in_beats + main_track_beats
 
@@ -215,11 +199,60 @@ def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional
     output_data = (track * 32767).astype(np.int16)
     wavfile.write(output_file, fs, output_data)
 
+
+@click.command()
+@click.option('--bpm', default=120, help='Beats per minute.')
+@click.option('--duration', 'duration_str', default='5.0',
+              help='Duration of the main track (e.g. "5min 30s", "5min", "10s", or "5" for minutes).')
+@click.option('--beats', 'main_track_beats', type=int, default=None,
+              help='Duration in number of beats. If provided, duration is ignored.')
+@click.option('--pre-roll', 'pre_roll_sec', default=1.0, help='Pre-roll duration in seconds.')
+@click.option('--count-in', 'count_in_beats', default=4, help='Number of count-in beats.')
+@click.option('--count-in-type', type=click.Choice(['default', 'stick', 'wood']), default='stick',
+              help='Sound type for the count-in.')
+@click.option('--click-type', type=click.Choice(['default', 'wood']), default='default',
+              help='Sound type for the main click.')
+@click.option('--custom-high', type=click.Path(exists=True), default=None,
+              help='Custom WAV file for the high click.')
+@click.option('--custom-low', type=click.Path(exists=True), default=None,
+              help='Custom WAV file for the low click.')
+@click.option('--output', 'output_file', default=None,
+              help='Output filename. Defaults to click-track-<bpm>bpm.wav')
+@click.option('--fs', default=44100, help='Sampling rate.')
+@click.option('--measure', default='4/4', help='Measure/Time signature (e.g., 4/4, 3/4, 6/8).')
+def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional[int], pre_roll_sec: float,
+                         count_in_beats: int,
+                         count_in_type: str, click_type: str, custom_high: Optional[str],
+                         custom_low: Optional[str], output_file: Optional[str], fs: int,
+                         measure: str) -> None:
+    """Generates a click track with pre-roll and count-in."""
+
+    try:
+        generate_click_track_core(
+            bpm=bpm,
+            duration_str=duration_str,
+            main_track_beats=main_track_beats,
+            pre_roll_sec=pre_roll_sec,
+            count_in_beats=count_in_beats,
+            count_in_type=count_in_type,
+            click_type=click_type,
+            custom_high=custom_high,
+            custom_low=custom_low,
+            output_file=output_file,
+            fs=fs,
+            measure=measure
+        )
+    except ValueError as e:
+        raise click.ClickException(click.style(str(e), fg="red"))
+
     click.echo(click.style("\nClick Track Generated Successfully!", fg="green", bold=True))
     click.echo("-" * 40)
     click.echo(f"{'Output File:':<20} {output_file}")
     click.echo(f"{'BPM:':<20} {bpm}")
     click.echo(f"{'Duration:':<20} {duration_str}")
+    if main_track_beats is None:
+        duration_sec = parse_duration(duration_str)
+        main_track_beats = int((duration_sec * bpm / 60.0))
     click.echo(f"{'Duration (beats):':<20} {main_track_beats}")
     click.echo(f"{'Pre-roll (sec):':<20} {pre_roll_sec}")
     click.echo(f"{'Count-in Beats:':<20} {count_in_beats}")
