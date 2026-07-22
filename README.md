@@ -33,6 +33,7 @@ python -m click_track_generator [OPTIONS]
 | `--pre-roll` | `1.0` | Silence in seconds before the count-in |
 | `--output` | `click-track-<bpm>bpm.wav` | Output filename |
 | `--fs` | `44100` | Sampling rate in Hz |
+| `--section` | — | Tempo section (repeatable). See [Tempo sections](#tempo-sections) |
 
 ### Examples
 
@@ -49,6 +50,52 @@ python -m click_track_generator --bpm 140 --measure 3/4 --duration 2 --count-in 
 Exact length by beat count, no accent on beat 1:
 ```bash
 python -m click_track_generator --bpm 90 --beats 128 --use-accent-click false
+```
+
+## Tempo sections
+
+Use `--section` (repeatable) to define a track with multiple tempi. Each section specifies a BPM, a duration, and an optional transition to the next section. When sections are provided, `--bpm` and `--duration` are ignored.
+
+**Section format:** `"BPM|DURATION[|TRANSITION[|TRANSITION_DURATION]]"`
+
+- **BPM** — tempo for this section
+- **DURATION** — length in bars (e.g. `8bars`), `MM:SS`, seconds (`30s`), or minutes (float)
+- **TRANSITION** — `immediate` (default) or `gradual`
+- **TRANSITION_DURATION** — length of the gradual ramp (same formats as DURATION); the ramp is inserted as extra time between the two sections
+
+A gradual transition linearly interpolates the BPM between sections, so beat spacing changes smoothly throughout the ramp.
+
+Two sections with an immediate tempo jump:
+```bash
+python -m click_track_generator --measure 4/4 \
+  --section "120|8bars" \
+  --section "140|8bars"
+```
+
+Three sections with a gradual 2-bar ramp between the first and second:
+```bash
+python -m click_track_generator --measure 4/4 \
+  --section "120|8bars|gradual|2bars" \
+  --section "140|16bars" \
+  --section "160|04:30"
+```
+
+Via the Python API, use `TempoSection` objects:
+```python
+from click_track_generator import ClickTrackSpec, TempoSection, generate_click_track_core
+
+spec = ClickTrackSpec(
+    measure="3/4",
+    count_in_beats=3,
+    click_type="wood",
+    output_file="waltz.wav",
+    tempo_sections=[
+        TempoSection(bpm=90,  duration="8bars"),
+        TempoSection(bpm=120, duration="8bars", transition="gradual", transition_duration="4bars"),
+        TempoSection(bpm=120, duration="16bars"),
+    ],
+)
+generate_click_track_core(spec)
 ```
 
 ## Batch generation

@@ -32,6 +32,16 @@ def parse_duration(duration_str: str) -> float:
     return total_seconds
 
 
+def parse_section_duration(s: str, bpm: float, beats_per_measure: int, beat_unit: int) -> float:
+    """Parse a duration that may include a bars specifier (e.g. '8bars') in addition to standard formats."""
+    match = re.match(r'^(\d+(?:\.\d+)?)\s*bars?$', s.strip(), re.IGNORECASE)
+    if match:
+        n_bars = float(match.group(1))
+        seconds_per_bar = beats_per_measure * (60.0 / bpm) * (4.0 / beat_unit)
+        return n_bars * seconds_per_bar
+    return parse_duration(s)
+
+
 def parse_measure(measure: str) -> tuple[int, int]:
     """Parse a time signature string like '4/4' into (beats_per_measure, beat_unit)."""
     try:

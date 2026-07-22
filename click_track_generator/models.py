@@ -1,5 +1,13 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+
+
+@dataclass
+class TempoSection:
+    bpm: float
+    duration: str
+    transition: str = 'immediate'       # 'immediate' | 'gradual'
+    transition_duration: str = '0s'     # only used when transition='gradual'
 
 
 @dataclass
@@ -17,3 +25,4 @@ class ClickTrackSpec:
     output_file: Optional[str] = None
     fs: int = 44100
     measure: str = '4/4'
+    tempo_sections: Optional[list[TempoSection]] = None
