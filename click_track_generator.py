@@ -118,7 +118,8 @@ def load_custom_click(path: str, target_fs: int) -> np.ndarray:
 
 def generate_click_track_core(bpm: int = 120, duration_str: str = '5.0', main_track_beats: Optional[int] = None,
                               pre_roll_sec: float = 1.0, count_in_beats: int = 4,
-                              count_in_type: str = 'stick', click_type: str = 'default',
+                              count_in_type: str = 'default', click_type: str = 'default',
+                              use_accent_click: bool = True,
                               custom_high: Optional[str] = None, custom_low: Optional[str] = None,
                               output_file: Optional[str] = None, fs: int = 44100,
                               measure: str = '4/4') -> None:
@@ -150,26 +151,28 @@ def generate_click_track_core(bpm: int = 120, duration_str: str = '5.0', main_tr
         click_count = create_stick_clap(fs)
     elif count_in_type == 'wood':
         click_count = create_wood_click(1800, fs)
-    else:
+    elif count_in_type == 'default':
         click_count = create_click(1800, fs)  # High/Sharp
+    else:
+        raise ValueError(f'Invalid count in type: ${count_in_type}')
 
     # High Click
     if custom_high:
         click_high = load_custom_click(custom_high, fs)
     else:
         if click_type == 'wood':
-            click_high = create_wood_click(1200, fs)
+            click_high = create_wood_click(1100, fs)
         else:
-            click_high = create_click(1200, fs)
+            click_high = create_click(1100, fs)
 
     # Low Click
     if custom_low:
         click_low = load_custom_click(custom_low, fs)
     else:
         if click_type == 'wood':
-            click_low = create_wood_click(600, fs)
+            click_low = create_wood_click(700, fs)
         else:
-            click_low = create_click(600, fs)
+            click_low = create_click(700, fs)
 
     # Assemble click track 
     pre_roll_samples = int(pre_roll_sec * fs)
@@ -183,7 +186,7 @@ def generate_click_track_core(bpm: int = 120, duration_str: str = '5.0', main_tr
             current_sound = click_count
         else:
             relative_i = i - count_in_beats
-            current_sound = click_high if (relative_i % beats_per_measure == 0) else click_low
+            current_sound = click_high if (relative_i % beats_per_measure == 0) and use_accent_click else click_low
 
         end_idx = start_idx + len(current_sound)
         if end_idx < len(track):
@@ -208,10 +211,11 @@ def generate_click_track_core(bpm: int = 120, duration_str: str = '5.0', main_tr
               help='Duration in number of beats. If provided, duration is ignored.')
 @click.option('--pre-roll', 'pre_roll_sec', default=1.0, help='Pre-roll duration in seconds.')
 @click.option('--count-in', 'count_in_beats', default=4, help='Number of count-in beats.')
-@click.option('--count-in-type', type=click.Choice(['default', 'stick', 'wood']), default='stick',
+@click.option('--count-in-type', type=click.Choice(['default', 'stick', 'wood']), default='default',
               help='Sound type for the count-in.')
 @click.option('--click-type', type=click.Choice(['default', 'wood']), default='default',
               help='Sound type for the main click.')
+@click.option('--use-accent-click', type=bool, default=True, help='If set to false no accent click is used for the first beat.')
 @click.option('--custom-high', type=click.Path(exists=True), default=None,
               help='Custom WAV file for the high click.')
 @click.option('--custom-low', type=click.Path(exists=True), default=None,
@@ -221,10 +225,9 @@ def generate_click_track_core(bpm: int = 120, duration_str: str = '5.0', main_tr
 @click.option('--fs', default=44100, help='Sampling rate.')
 @click.option('--measure', default='4/4', help='Measure/Time signature (e.g., 4/4, 3/4, 6/8).')
 def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional[int], pre_roll_sec: float,
-                         count_in_beats: int,
-                         count_in_type: str, click_type: str, custom_high: Optional[str],
-                         custom_low: Optional[str], output_file: Optional[str], fs: int,
-                         measure: str) -> None:
+                         count_in_beats: int, count_in_type: str, click_type: str, use_accent_click: bool,
+                         custom_high: Optional[str], custom_low: Optional[str], output_file: Optional[str], 
+                         fs: int, measure: str) -> None:
     """Generates a click track with pre-roll and count-in."""
 
     try:
@@ -237,6 +240,7 @@ def generate_click_track(bpm: int, duration_str: str, main_track_beats: Optional
             count_in_type=count_in_type,
             click_type=click_type,
             custom_high=custom_high,
+            use_accent_click=use_accent_click,
             custom_low=custom_low,
             output_file=output_file,
             fs=fs,
