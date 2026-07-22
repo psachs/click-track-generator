@@ -79,6 +79,13 @@ def _assemble_samples(
     return track
 
 
+def _normalize_rms(signal: np.ndarray, target_rms: float = 0.1) -> np.ndarray:
+    rms = np.sqrt(np.mean(signal ** 2))
+    if rms > 0:
+        signal = signal * (target_rms / rms)
+    return signal
+
+
 def _normalize(track: np.ndarray, gain_reduction: float = 1.5) -> np.ndarray:
     peak = np.max(np.abs(track)) * gain_reduction
     if peak > 0:
@@ -100,8 +107,10 @@ def generate_click_track_core(spec: ClickTrackSpec) -> None:
     )
     total_beats = spec.count_in_beats + main_track_beats
 
-    count_in_sound = _make_count_in_sound(spec.count_in_type, spec.fs)
+    count_in_sound = _normalize_rms(_make_count_in_sound(spec.count_in_type, spec.fs))
     click_high, click_low = _make_click_pair(spec.click_type, spec.custom_high, spec.custom_low, spec.fs)
+    click_high = _normalize_rms(click_high)
+    click_low = _normalize_rms(click_low)
 
     track = _assemble_samples(
         pre_roll_sec=spec.pre_roll_sec,
